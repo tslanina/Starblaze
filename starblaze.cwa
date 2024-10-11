@@ -1,0 +1,81 @@
+/*
+    Starblaze
+    256b Intro
+    MicroW8
+
+    Contribution to Deadline 2024
+
+    Tomasz Slanina
+    dox/Joker
+    https://github.com/tslanina
+
+    Raymarching @ 160x120 res
+    
+    Inspired by:
+    https://www.shadertoy.com/view/XsyXzw
+*/
+
+   include "../include/microw8-api.cwa"
+
+   global mut counter: i32 = 0;
+   global mut dec: i32 = 700;
+
+   export fn upd() {
+
+      let inline sa = time();
+
+      let inline base_x = cos(time()/4.0); // slowly rotate base around z
+      let inline base_y = -sin(time()/4.0);
+
+      if(dec > 128) {  // dec = <128 ; 700>,  one byte less than use max()
+         dec -=2; 
+      } 
+
+      counter +=1;
+
+      playNote(1, dec>>4 ); //the source of annoying noise
+
+      let offset = (counter&1) + (counter&2)*160; // framebuffer start offset : 0,1,320,321
+      
+      let y = -120.0;
+
+      loop rows {
+         let x = -160.0;
+         loop cols {
+
+               let inline dlen = sqrt(x*x+y*y)  + dec as f32;
+
+               let iterations = 33-(dec>>6);
+               let d = 0.0;
+
+               loop iterate {
+               
+                  let vec_x = base_x*2.0+x/dlen*d;
+                  let vec_y = base_y*2.0+y/dlen*d;
+                  let vec_z = time()*4.0+d; // let's fly!
+
+                  let inline  ss = sin(vec_z*0.5); // rotate
+                  let inline  cs = cos(vec_z*0.5);
+
+                  let bvec_x = vec_x;
+
+                  vec_x = fmod(cs*vec_x - ss*vec_y, 1.0) - 0.5; // fract, <-0,5 ; 0.5 >
+                  vec_y = fmod(ss*bvec_x + cs*vec_y, 1.0) - 0.5;
+                  vec_z = fmod(vec_z, 1.0) - 0.5;   
+
+                  d = d + (sqrt(vec_x*vec_x+vec_y*vec_y+vec_z*vec_z) - 0.017)*0.8; // sphere dist (r=0.017) + blur
+
+                  branch_if(iterations := iterations - 1) > 0: iterate;
+               } 
+               offset ? FRAMEBUFFER = 0xe5 + d as i32  ^ 15; // calculate proper color 
+
+            offset+=2; // skip pixel
+
+            branch_if( x := x + 2.0) < 160.0: cols;
+         }
+
+         offset+=320; // skip line
+
+         branch_if( y := y + 2.0) < 120.0: rows;
+      }
+   }
